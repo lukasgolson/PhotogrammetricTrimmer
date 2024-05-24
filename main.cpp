@@ -5,6 +5,8 @@
 #include <pcl/surface/convex_hull.h>
 #include <pcl/filters/crop_hull.h>
 #include "easylogging++.h"
+#include <pcl/common/common.h>
+#include <pcl/filters/passthrough.h>
 
 
 INITIALIZE_EASYLOGGINGPP
@@ -46,9 +48,31 @@ cropPoints(const pcl::PointCloud<pcl::PointXYZ>::Ptr &inputCloud, const pcl::Poi
     cropHullFilter.setHullCloud(hullCloud);
     cropHullFilter.setDim(3); // Use 3D cropping
 
+    // Create a bounding box from the hull
+    pcl::PointXYZ minPt, maxPt;
+    pcl::getMinMax3D(*hullCloud, minPt, maxPt);
+
     pcl::PointCloud<pcl::PointXYZ>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-    cropHullFilter.setInputCloud(inputCloud);
+
+    pcl::PassThrough<pcl::PointXYZ> pass;
+    pass.setInputCloud(inputCloud);
+    pass.setFilterFieldName("x");
+    pass.setFilterLimits(minPt.x, maxPt.x);
+    pass.filter(*filteredCloud);
+
+    pass.setInputCloud(filteredCloud);
+    pass.setFilterFieldName("y");
+    pass.setFilterLimits(minPt.y, maxPt.y);
+    pass.filter(*filteredCloud);
+
+    pass.setInputCloud(filteredCloud);
+    pass.setFilterFieldName("z");
+    pass.setFilterLimits(minPt.z, maxPt.z);
+    pass.filter(*filteredCloud);
+
+
+    cropHullFilter.setInputCloud(filteredCloud);
     cropHullFilter.filter(*filteredCloud);
     return filteredCloud;
 }
