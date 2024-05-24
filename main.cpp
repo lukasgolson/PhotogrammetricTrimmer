@@ -92,6 +92,7 @@ int main(int argc, char *argv[]) {
     // Crop points within the hull
     auto filteredCloud = cropPoints(cloud, hullCloud, hullPolygons);
 
+    std::cout << "Filtered " << filteredCloud->width * filteredCloud->height << " data points" << std::endl;
     // Save filtered point cloud
     pcl::io::savePCDFile(outputFilePath, *filteredCloud);
     std::cout << "Saved filtered point cloud to " << outputFilePath << std::endl;
