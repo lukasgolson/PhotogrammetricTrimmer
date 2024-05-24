@@ -39,14 +39,8 @@ loadCameraAndComputeHull(const std::string &cameras) {
     return {hullCloud, hullPolygons};
 }
 
-// Function to crop points within hull
-pcl::PointCloud<pcl::PointXYZ>::Ptr
-cropPoints(const pcl::PointCloud<pcl::PointXYZ>::Ptr &inputCloud, const pcl::PointCloud<pcl::PointXYZ>::Ptr &hullCloud,
-           const std::vector<pcl::Vertices> &hullPolygons) {
-    pcl::CropHull<pcl::PointXYZ> cropHullFilter;
-    cropHullFilter.setHullIndices(hullPolygons);
-    cropHullFilter.setHullCloud(hullCloud);
-    cropHullFilter.setDim(3); // Use 3D cropping
+
+pcl::PointCloud<pcl::PointXYZ>::Ptr cropByBounds(const pcl::PointCloud<pcl::PointXYZ>::Ptr &inputCloud, const pcl::PointCloud<pcl::PointXYZ>::Ptr &hullCloud, float margin = 0.1){
 
     // Create a bounding box from the hull
     pcl::PointXYZ minPt, maxPt;
@@ -58,21 +52,36 @@ cropPoints(const pcl::PointCloud<pcl::PointXYZ>::Ptr &inputCloud, const pcl::Poi
     pcl::PassThrough<pcl::PointXYZ> pass;
     pass.setInputCloud(inputCloud);
     pass.setFilterFieldName("x");
-    pass.setFilterLimits(minPt.x, maxPt.x);
+    pass.setFilterLimits(minPt.x - (minPt.x * margin), maxPt.x + (minPt.x * margin));
     pass.filter(*filteredCloud);
 
     pass.setInputCloud(filteredCloud);
     pass.setFilterFieldName("y");
-    pass.setFilterLimits(minPt.y, maxPt.y);
+    pass.setFilterLimits(minPt.y - (minPt.y * margin), maxPt.y + (minPt.y * margin));
     pass.filter(*filteredCloud);
 
     pass.setInputCloud(filteredCloud);
     pass.setFilterFieldName("z");
-    pass.setFilterLimits(minPt.z, maxPt.z);
+    pass.setFilterLimits(minPt.z - (minPt.z * margin), maxPt.z + (minPt.z * margin));
     pass.filter(*filteredCloud);
 
+    return filteredCloud;
+}
 
-    cropHullFilter.setInputCloud(filteredCloud);
+// Function to crop points within hull
+pcl::PointCloud<pcl::PointXYZ>::Ptr
+cropPoints(const pcl::PointCloud<pcl::PointXYZ>::Ptr &inputCloud, const pcl::PointCloud<pcl::PointXYZ>::Ptr &hullCloud,
+           const std::vector<pcl::Vertices> &hullPolygons) {
+    pcl::CropHull<pcl::PointXYZ> cropHullFilter;
+    cropHullFilter.setHullIndices(hullPolygons);
+    cropHullFilter.setHullCloud(hullCloud);
+    cropHullFilter.setDim(3); // Use 3D cropping
+
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+
+    cropHullFilter.setInputCloud(inputCloud);
     cropHullFilter.filter(*filteredCloud);
     return filteredCloud;
 }
@@ -118,14 +127,34 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+
     LOG(INFO) << "Convex hull computed" << std::endl;
 
-    // Crop points within the hull
-    auto filteredCloud = cropPoints(cloud, hullCloud, hullPolygons);
 
-    LOG(INFO) << "Filtered " << filteredCloud->width * filteredCloud->height << " data points" << std::endl;
+    auto preCroppedCount = cloud->width * cloud->height;
+
+    // Crop points within bounding box
+    auto filteredCloud = cropByBounds(cloud, hullCloud);
+    auto postBoxCroppedCount = filteredCloud->width * filteredCloud->height;
+
+    auto diff = preCroppedCount - postBoxCroppedCount;
+
+    LOG(INFO) << "Filtered " << diff << " data points" << std::endl;
+
+
+    // Crop points within the hull
+    auto newCloud = cropPoints(filteredCloud, hullCloud, hullPolygons);
+    auto postHullCroppedCount = newCloud->width * newCloud->height;
+
+    auto diff2 = postBoxCroppedCount - postHullCroppedCount;
+
+    LOG(INFO) << "Filtered " << diff2 << " data points" << std::endl;
+
+
+    LOG(INFO) << "Removed total of " << diff + diff2 << " data points" << std::endl;
+
     // Save filtered point cloud
-    pcl::io::savePCDFile(outputFilePath, *filteredCloud);
+    pcl::io::savePCDFile(outputFilePath, *newCloud);
     LOG(INFO) << "Saved filtered point cloud to " << outputFilePath << std::endl;
 
     return 0;
