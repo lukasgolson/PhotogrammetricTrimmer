@@ -1,0 +1,9 @@
+# This file is managed by Conan, contents will be overwritten.
+# To keep your changes, remove these comment lines, but the plugin won't be able to modify your requirements
+
+requirements:
+  - "indicators/2.3"
+  - "argparse/2.9"
+  - "easyloggingpp/9.97.1"
+  - "backward-cpp/1.6"
+  - "pcl/1.13.1"
