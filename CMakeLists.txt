@@ -16,3 +16,8 @@ target_link_libraries(point_cloud_utilities PCL::PCL)
 
 find_package(indicators)
 target_link_libraries(point_cloud_utilities indicators::indicators)
+
+
+
+find_package(easyloggingpp)
+target_link_libraries(point_cloud_utilities easyloggingpp::easyloggingpp)

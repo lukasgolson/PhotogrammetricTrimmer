@@ -4,6 +4,11 @@
 #include <pcl/point_types.h>
 #include <pcl/surface/convex_hull.h>
 #include <pcl/filters/crop_hull.h>
+#include "easylogging++.h"
+
+
+INITIALIZE_EASYLOGGINGPP
+
 
 // Function to load point cloud
 pcl::PointCloud<pcl::PointXYZ>::Ptr loadPointCloud(const std::string &filename) {
@@ -50,6 +55,8 @@ cropPoints(const pcl::PointCloud<pcl::PointXYZ>::Ptr &inputCloud, const pcl::Poi
 
 int main(int argc, char *argv[]) {
     argparse::ArgumentParser program("pointcloud_utils", "0.1");
+    START_EASYLOGGINGPP(argc, argv);
+
 
     program.add_argument("inputFilePath").help("Input point cloud file").required();
     program.add_argument("cameraFilePath").help("Camera position point cloud file").required();
@@ -68,9 +75,9 @@ int main(int argc, char *argv[]) {
     auto cameraFilePath = program.get<std::string>("cameraFilePath");
     auto outputFilePath = program.get<std::string>("outputFilePath");
 
-    std::cout << "Input: " << inputFilePath << std::endl;
-    std::cout << "Cameras: " << cameraFilePath << std::endl;
-    std::cout << "Output: " << outputFilePath << std::endl;
+    LOG(INFO) << "Input: " << inputFilePath << std::endl;
+    LOG(INFO) << "Cameras: " << cameraFilePath << std::endl;
+    LOG(INFO) << "Output: " << outputFilePath << std::endl;
 
     // Load main cloud
     auto cloud = loadPointCloud(inputFilePath);
@@ -78,7 +85,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    std::cout << "Loaded " << cloud->width * cloud->height << " data points from " << inputFilePath << std::endl;
+    LOG(INFO) << "Loaded " << cloud->width * cloud->height << " data points from " << inputFilePath << std::endl;
 
 
     // Load camera cloud and compute hull
@@ -87,15 +94,15 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    std::cout << "Convex hull computed" << std::endl;
+    LOG(INFO) << "Convex hull computed" << std::endl;
 
     // Crop points within the hull
     auto filteredCloud = cropPoints(cloud, hullCloud, hullPolygons);
 
-    std::cout << "Filtered " << filteredCloud->width * filteredCloud->height << " data points" << std::endl;
+    LOG(INFO) << "Filtered " << filteredCloud->width * filteredCloud->height << " data points" << std::endl;
     // Save filtered point cloud
     pcl::io::savePCDFile(outputFilePath, *filteredCloud);
-    std::cout << "Saved filtered point cloud to " << outputFilePath << std::endl;
+    LOG(INFO) << "Saved filtered point cloud to " << outputFilePath << std::endl;
 
     return 0;
 }
