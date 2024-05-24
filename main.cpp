@@ -12,7 +12,6 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr loadPointCloud(const std::string &filename) 
         PCL_ERROR("Couldn't read file %s \n", filename.c_str());
         return nullptr;
     }
-    std::cout << "Loaded " << cloud->width * cloud->height << " data points from " << filename << std::endl;
     return cloud;
 }
 
@@ -30,28 +29,31 @@ loadCameraAndComputeHull(const std::string &cameras) {
     chull.setInputCloud(cameraCloud);
     chull.reconstruct(*hullCloud, hullPolygons);
 
-    std::cout << "Convex hull computed" << std::endl;
     return {hullCloud, hullPolygons};
 }
 
 // Function to crop points within hull
-void cropPoints(const pcl::PointCloud<pcl::PointXYZ>::Ptr &inputCloud, const pcl::PointCloud<pcl::PointXYZ>::Ptr &hullCloud,
-                const std::vector<pcl::Vertices> &hullPolygons, pcl::PointCloud<pcl::PointXYZ>::Ptr &outputCloud) {
+pcl::PointCloud<pcl::PointXYZ>::Ptr
+cropPoints(const pcl::PointCloud<pcl::PointXYZ>::Ptr &inputCloud, const pcl::PointCloud<pcl::PointXYZ>::Ptr &hullCloud,
+           const std::vector<pcl::Vertices> &hullPolygons) {
     pcl::CropHull<pcl::PointXYZ> cropHullFilter;
     cropHullFilter.setHullIndices(hullPolygons);
     cropHullFilter.setHullCloud(hullCloud);
     cropHullFilter.setDim(3); // Use 3D cropping
 
+    pcl::PointCloud<pcl::PointXYZ>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZ>);
+
     cropHullFilter.setInputCloud(inputCloud);
-    cropHullFilter.filter(*outputCloud);
+    cropHullFilter.filter(*filteredCloud);
+    return filteredCloud;
 }
 
 int main(int argc, char *argv[]) {
     argparse::ArgumentParser program("pointcloud_utils", "0.1");
 
-    program.add_argument("input").help("Input point cloud file").required();
-    program.add_argument("cameras").help("Camera position point cloud file").required();
-    program.add_argument("output").help("Output point cloud file").required();
+    program.add_argument("inputFilePath").help("Input point cloud file").required();
+    program.add_argument("cameraFilePath").help("Camera position point cloud file").required();
+    program.add_argument("outputFilePath").help("Output point cloud file").required();
 
     try {
         program.parse_args(argc, argv);
@@ -62,33 +64,37 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    auto input = program.get<std::string>("input");
-    auto cameras = program.get<std::string>("cameras");
-    auto output = program.get<std::string>("output");
+    auto inputFilePath = program.get<std::string>("inputFilePath");
+    auto cameraFilePath = program.get<std::string>("cameraFilePath");
+    auto outputFilePath = program.get<std::string>("outputFilePath");
 
-    std::cout << "Cameras: " << cameras << std::endl;
-    std::cout << "Input: " << input << std::endl;
-    std::cout << "Output: " << output << std::endl;
+    std::cout << "Input: " << inputFilePath << std::endl;
+    std::cout << "Cameras: " << cameraFilePath << std::endl;
+    std::cout << "Output: " << outputFilePath << std::endl;
 
     // Load main cloud
-    auto cloud = loadPointCloud(input);
+    auto cloud = loadPointCloud(inputFilePath);
     if (!cloud) {
         return -1;
     }
 
+    std::cout << "Loaded " << cloud->width * cloud->height << " data points from " << inputFilePath << std::endl;
+
+
     // Load camera cloud and compute hull
-    auto [hullCloud, hullPolygons] = loadCameraAndComputeHull(cameras);
+    auto [hullCloud, hullPolygons] = loadCameraAndComputeHull(cameraFilePath);
     if (!hullCloud) {
         return -1;
     }
 
+    std::cout << "Convex hull computed" << std::endl;
+
     // Crop points within the hull
-    pcl::PointCloud<pcl::PointXYZ>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZ>);
-    cropPoints(cloud, hullCloud, hullPolygons, filteredCloud);
+    auto filteredCloud = cropPoints(cloud, hullCloud, hullPolygons);
 
     // Save filtered point cloud
-    pcl::io::savePCDFile(output, *filteredCloud);
-    std::cout << "Saved filtered point cloud to " << output << std::endl;
+    pcl::io::savePCDFile(outputFilePath, *filteredCloud);
+    std::cout << "Saved filtered point cloud to " << outputFilePath << std::endl;
 
     return 0;
 }
