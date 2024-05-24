@@ -8,14 +8,12 @@
 #include <pcl/common/common.h>
 #include <pcl/filters/passthrough.h>
 
-
 INITIALIZE_EASYLOGGINGPP
 
-
 // Function to load point cloud
-pcl::PointCloud<pcl::PointXYZ>::Ptr loadPointCloud(const std::string &filename) {
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    if (pcl::io::loadPCDFile<pcl::PointXYZ>(filename, *cloud) == -1) {
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadPointCloud(const std::string &filename) {
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    if (pcl::io::loadPCDFile<pcl::PointXYZRGB>(filename, *cloud) == -1) {
         PCL_ERROR("Couldn't read file %s \n", filename.c_str());
         return nullptr;
     }
@@ -23,33 +21,30 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr loadPointCloud(const std::string &filename) 
 }
 
 // Function to load camera point cloud and compute convex hull
-std::pair<pcl::PointCloud<pcl::PointXYZ>::Ptr, std::vector<pcl::Vertices>>
+std::pair<pcl::PointCloud<pcl::PointXYZRGB>::Ptr, std::vector<pcl::Vertices>>
 loadCameraAndComputeHull(const std::string &cameras) {
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cameraCloud = loadPointCloud(cameras);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cameraCloud = loadPointCloud(cameras);
     if (!cameraCloud) {
         return {nullptr, {}};
     }
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr hullCloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr hullCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     std::vector<pcl::Vertices> hullPolygons;
-    pcl::ConvexHull<pcl::PointXYZ> chull;
+    pcl::ConvexHull<pcl::PointXYZRGB> chull;
     chull.setInputCloud(cameraCloud);
     chull.reconstruct(*hullCloud, hullPolygons);
 
     return {hullCloud, hullPolygons};
 }
 
-
-pcl::PointCloud<pcl::PointXYZ>::Ptr cropByBounds(const pcl::PointCloud<pcl::PointXYZ>::Ptr &inputCloud, const pcl::PointCloud<pcl::PointXYZ>::Ptr &hullCloud, float margin = 0.1){
-
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr cropByBounds(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &inputCloud, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &hullCloud, float margin = 0.1) {
     // Create a bounding box from the hull
-    pcl::PointXYZ minPt, maxPt;
+    pcl::PointXYZRGB minPt, maxPt;
     pcl::getMinMax3D(*hullCloud, minPt, maxPt);
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
-
-    pcl::PassThrough<pcl::PointXYZ> pass;
+    pcl::PassThrough<pcl::PointXYZRGB> pass;
     pass.setInputCloud(inputCloud);
     pass.setFilterFieldName("x");
     pass.setFilterLimits(minPt.x - (minPt.x * margin), maxPt.x + (minPt.x * margin));
@@ -69,17 +64,15 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr cropByBounds(const pcl::PointCloud<pcl::Poin
 }
 
 // Function to crop points within hull
-pcl::PointCloud<pcl::PointXYZ>::Ptr
-cropPoints(const pcl::PointCloud<pcl::PointXYZ>::Ptr &inputCloud, const pcl::PointCloud<pcl::PointXYZ>::Ptr &hullCloud,
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr
+cropPoints(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &inputCloud, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &hullCloud,
            const std::vector<pcl::Vertices> &hullPolygons) {
-    pcl::CropHull<pcl::PointXYZ> cropHullFilter;
+    pcl::CropHull<pcl::PointXYZRGB> cropHullFilter;
     cropHullFilter.setHullIndices(hullPolygons);
     cropHullFilter.setHullCloud(hullCloud);
     cropHullFilter.setDim(3); // Use 3D cropping
 
-
-    pcl::PointCloud<pcl::PointXYZ>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZ>);
-
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
     cropHullFilter.setInputCloud(inputCloud);
     cropHullFilter.filter(*filteredCloud);
@@ -89,7 +82,6 @@ cropPoints(const pcl::PointCloud<pcl::PointXYZ>::Ptr &inputCloud, const pcl::Poi
 int main(int argc, char *argv[]) {
     argparse::ArgumentParser program("pointcloud_utils", "0.1");
     START_EASYLOGGINGPP(argc, argv);
-
 
     program.add_argument("inputFilePath").help("Input point cloud file").required();
     program.add_argument("cameraFilePath").help("Camera position point cloud file").required();
@@ -120,16 +112,13 @@ int main(int argc, char *argv[]) {
 
     LOG(INFO) << "Loaded " << cloud->width * cloud->height << " data points from " << inputFilePath << std::endl;
 
-
     // Load camera cloud and compute hull
     auto [hullCloud, hullPolygons] = loadCameraAndComputeHull(cameraFilePath);
     if (!hullCloud) {
         return -1;
     }
 
-
     LOG(INFO) << "Convex hull computed" << std::endl;
-
 
     auto preCroppedCount = cloud->width * cloud->height;
 
@@ -141,7 +130,6 @@ int main(int argc, char *argv[]) {
 
     LOG(INFO) << "Filtered " << diff << " data points" << std::endl;
 
-
     // Crop points within the hull
     auto newCloud = cropPoints(filteredCloud, hullCloud, hullPolygons);
     auto postHullCroppedCount = newCloud->width * newCloud->height;
@@ -149,7 +137,6 @@ int main(int argc, char *argv[]) {
     auto diff2 = postBoxCroppedCount - postHullCroppedCount;
 
     LOG(INFO) << "Filtered " << diff2 << " data points" << std::endl;
-
 
     LOG(INFO) << "Removed total of " << diff + diff2 << " data points" << std::endl;
 
